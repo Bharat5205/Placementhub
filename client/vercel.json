@@ -1,0 +1,20 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://placementhub-backend.onrender.com/api/:path*"
+    },
+    {
+      "source": "/auth/:path*",
+      "destination": "https://placementhub-backend.onrender.com/auth/:path*"
+    },
+    {
+      "source": "/uploads/:path*",
+      "destination": "https://placementhub-backend.onrender.com/uploads/:path*"
+    },
+    {
+      "source": "/((?!assets/|favicon.ico|logos/|student_avatar.png|coordinator_avatar.png|campus_bg.png).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
