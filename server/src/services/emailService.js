@@ -46,6 +46,8 @@ const RESEND_API_KEY = cleanEnvVar(process.env.RESEND_API_KEY);
           user: SMTP_USER,
           pass: SMTP_PASS,
         },
+        connectionTimeout: 5000, // Fail fast if connection is blocked
+        greetingTimeout: 5000,
       });
       await testTransporter.verify();
       console.log("[SMTP Startup Check] SMTP Connection Successful!");
@@ -118,6 +120,8 @@ const createTransporter = async () => {
           user: SMTP_USER,
           pass: SMTP_PASS,
         },
+        connectionTimeout: 5000, // Fail fast if connection is blocked
+        greetingTimeout: 5000,
       });
       await transporter.verify();
       console.log("[SMTP Transporter] Connected successfully. Transporter ready.");
