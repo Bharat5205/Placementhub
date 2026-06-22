@@ -1,42 +1,5 @@
 const nodemailer = require('nodemailer');
 const https = require('https');
-const dns = require('dns');
-
-// Force Node's DNS lookup to prioritize/use IPv4 for Gmail SMTP host to bypass Render's IPv6 routing limitations (ENETUNREACH)
-if (typeof dns.setDefaultResultOrder === 'function') {
-  dns.setDefaultResultOrder('ipv4first');
-}
-
-const originalLookup = dns.lookup;
-dns.lookup = function (hostname, options, callback) {
-  if (typeof options === 'function') {
-    callback = options;
-    options = {};
-  }
-  
-  const isGmail = hostname && hostname.includes('gmail.com');
-  if (isGmail) {
-    if (typeof options === 'object') {
-      options.family = 4;
-    } else {
-      options = { family: 4 };
-    }
-  }
-
-  const wrappedCallback = (err, address, family) => {
-    if (isGmail) {
-      if (err) {
-        console.error(`[DNS Lookup] Failed to resolve Gmail SMTP host: ${hostname}. Error: ${err.message}`);
-      } else {
-        console.log(`[DNS Lookup] Resolved Gmail SMTP host: ${hostname}`);
-        console.log(`[DNS Lookup] Resolved IP Address: ${address} | IP Version: IPv${family}`);
-      }
-    }
-    return callback(err, address, family);
-  };
-
-  return originalLookup.call(dns, hostname, options, wrappedCallback);
-};
 
 // ── Environment Sanitization Helper ──────────────────────────────────────────
 const cleanEnvVar = (val) => {
@@ -50,53 +13,15 @@ const cleanEnvVar = (val) => {
   return cleaned.trim();
 };
 
-const SMTP_HOST = cleanEnvVar(process.env.SMTP_HOST);
-const SMTP_PORT = parseInt(cleanEnvVar(process.env.SMTP_PORT)) || 587;
-const SMTP_USER = cleanEnvVar(process.env.SMTP_USER);
-const SMTP_PASS = cleanEnvVar(process.env.SMTP_PASS);
-const SMTP_FROM = cleanEnvVar(process.env.SMTP_FROM);
-const SMTP_SECURE = cleanEnvVar(process.env.SMTP_SECURE) === 'true';
 const RESEND_API_KEY = cleanEnvVar(process.env.RESEND_API_KEY);
+const SMTP_FROM = cleanEnvVar(process.env.SMTP_FROM) || 'onboarding@resend.dev';
 
 // ── Startup Diagnostics ──────────────────────────────────────────────────────
-(async () => {
-  console.log("\n=== SMTP & EMAIL CONFIGURATION DIAGNOSTICS ===");
-  console.log("RESEND_API_KEY (raw):", process.env.RESEND_API_KEY ? `*set* (length: ${process.env.RESEND_API_KEY.length})` : "(not set)");
-  console.log("SMTP_HOST (raw):", process.env.SMTP_HOST ? `"${process.env.SMTP_HOST}"` : "(not set)");
-  console.log("SMTP_HOST (cleaned):", SMTP_HOST ? `"${SMTP_HOST}"` : "(not set)");
-  console.log("SMTP_PORT (cleaned):", SMTP_PORT);
-  console.log("SMTP_USER (cleaned):", SMTP_USER ? `"${SMTP_USER}"` : "(not set)");
-  console.log("SMTP_PASS (cleaned):", SMTP_PASS ? `*set* (length: ${SMTP_PASS.length})` : "(not set)");
-  console.log("SMTP_FROM (cleaned):", SMTP_FROM ? `"${SMTP_FROM}"` : "(not set)");
-  console.log("SMTP_SECURE (cleaned):", SMTP_SECURE);
-
-  if (RESEND_API_KEY) {
-    console.log("[Email Service] Resend API Key detected. Using Resend HTTPS API as primary email driver.");
-  } else if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
-    try {
-      console.log("[SMTP Startup Check] Attempting transporter verification on startup...");
-      const testTransporter = nodemailer.createTransport({
-        host: SMTP_HOST,
-        port: SMTP_PORT,
-        secure: SMTP_SECURE,
-        auth: {
-          user: SMTP_USER,
-          pass: SMTP_PASS,
-        },
-        connectionTimeout: 5000, // Fail fast if connection is blocked
-        greetingTimeout: 5000,
-      });
-      await testTransporter.verify();
-      console.log("[SMTP Startup Check] SMTP Connection Successful!");
-    } catch (err) {
-      console.error("[SMTP Startup Check] SMTP Connection Failed.");
-      console.error("[SMTP Startup Check] Error Message:", err.message);
-      console.error("[SMTP Startup Check] Full Error Stack:", err.stack);
-    }
-  } else {
-    console.log("[SMTP Startup Check] Skipping transporter verification (SMTP not fully configured)");
-  }
-  console.log("==============================================\n");
+(() => {
+  console.log("\n=== EMAIL SERVICE CONFIGURATION ===");
+  console.log("RESEND_API_KEY:", RESEND_API_KEY ? `*set* (length: ${RESEND_API_KEY.length})` : "(not set - will fallback to Ethereal for local dev)");
+  console.log("SMTP_FROM (Sender):", SMTP_FROM);
+  console.log("===================================\n");
 })();
 
 // ── Resend API Sender ────────────────────────────────────────────────────────
@@ -142,48 +67,6 @@ const sendViaResend = (apiKey, from, to, subject, html) => {
     req.write(data);
     req.end();
   });
-};
-
-// ── Create transporter (Nodemailer Fallback) ─────────────────────────────────
-const createTransporter = async () => {
-  if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
-    console.log("[SMTP Transporter] Attempting connection to host:", SMTP_HOST);
-    try {
-      const transporter = nodemailer.createTransport({
-        host: SMTP_HOST,
-        port: SMTP_PORT,
-        secure: SMTP_SECURE,
-        auth: {
-          user: SMTP_USER,
-          pass: SMTP_PASS,
-        },
-        connectionTimeout: 5000, // Fail fast if connection is blocked
-        greetingTimeout: 5000,
-      });
-      await transporter.verify();
-      console.log("[SMTP Transporter] Connected successfully. Transporter ready.");
-      return transporter;
-    } catch (verifyErr) {
-      console.error("[SMTP Transporter] Verification failed for", SMTP_HOST);
-      console.error("[SMTP Transporter] Error Message:", verifyErr.message);
-      throw verifyErr;
-    }
-  }
-
-  // Development fallback: Ethereal fake SMTP
-  console.log("[SMTP Transporter] Missing configuration, attempting Ethereal fallback");
-  const testAccount = await nodemailer.createTestAccount();
-  const transporter = nodemailer.createTransport({
-    host: 'smtp.ethereal.email',
-    port: 587,
-    secure: false,
-    auth: {
-      user: testAccount.user,
-      pass: testAccount.pass,
-    },
-  });
-  console.log("[SMTP Transporter] Ethereal Transporter Created");
-  return transporter;
 };
 
 // ── Password Reset Email Template ─────────────────────────────────────────────
@@ -266,49 +149,54 @@ const buildResetEmailHTML = (userName, resetUrl) => `
 
 // ── Send reset email ──────────────────────────────────────────────────────────
 const sendPasswordResetEmail = async ({ to, userName, resetUrl }) => {
-  const fromAddress = SMTP_FROM || `"PlacementHub" <${SMTP_USER || 'noreply@placementhub.app'}>`;
   const subject = 'Reset Your PlacementHub Password';
   const html = buildResetEmailHTML(userName, resetUrl);
+  
+  // Format the from address nicely
+  const fromAddress = SMTP_FROM.includes('<') ? SMTP_FROM : `"PlacementHub" <${SMTP_FROM}>`;
 
   try {
-    console.log("[SMTP Email Service] Preparing password reset email...");
-    console.log("[SMTP Email Service] To Header:", to);
-    console.log("[SMTP Email Service] Reset URL:", resetUrl);
+    console.log("[Email Service] Preparing password reset email...");
+    console.log("[Email Service] To Header:", to);
+    console.log("[Email Service] From Header:", fromAddress);
 
-    // Primary: Resend HTTPS API (to bypass Render port blocks)
+    // Primary driver: Resend HTTPS API (to bypass SMTP blocks)
     if (RESEND_API_KEY) {
-      console.log("[SMTP Email Service] Route: Resend HTTPS API");
-      // Resend requires verified domains or onboarding default
-      const resendFrom = fromAddress.includes('gmail.com') ? 'onboarding@resend.dev' : fromAddress;
-      const cleanFrom = resendFrom.includes('<') ? resendFrom : `"PlacementHub" <${resendFrom}>`;
+      console.log("[Email Service] Routing via Resend HTTPS API...");
+      // Resend sandbox testing limit: must send from onboarding@resend.dev unless domain is verified
+      const cleanFrom = fromAddress.includes('gmail.com') ? '"PlacementHub" <onboarding@resend.dev>' : fromAddress;
       const response = await sendViaResend(RESEND_API_KEY, cleanFrom, to, subject, html);
-      console.log("[SMTP Email Service] Resend dispatch success:", JSON.stringify(response));
-      console.log("[SMTP Email Service] Delivery status: SUCCESS");
+      console.log("[Email Service] Resend API Success Response:", JSON.stringify(response));
       return response;
     }
 
-    // Fallback: SMTP / Ethereal via Nodemailer
-    console.log("[SMTP Email Service] Route: Nodemailer Transport");
-    const transporter = await createTransporter();
+    // Development Fallback: Ethereal SMTP
+    console.log("[Email Service] RESEND_API_KEY not configured. Falling back to Ethereal SMTP for local dev...");
+    const testAccount = await nodemailer.createTestAccount();
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+
     const info = await transporter.sendMail({
-      from: fromAddress,
+      from: `"PlacementHub" <noreply@placementhub.app>`,
       to,
       subject,
       html
     });
-    console.log("[SMTP Email Service] sendMail() success. Msg ID:", info.messageId);
-    console.log("[SMTP Email Service] Delivery status: SUCCESS");
-
-    if (!SMTP_HOST) {
-      console.log(`\n📧 Ethereal message preview URL: ${nodemailer.getTestMessageUrl(info)}`);
-    }
-
+    
+    console.log("[Email Service] Ethereal fallback successfully dispatched email. Message ID:", info.messageId);
+    console.log(`📧 Ethereal message preview URL: ${nodemailer.getTestMessageUrl(info)}`);
     return info;
   } catch (error) {
-    console.error("[SMTP Email Service] sendMail failed.");
-    console.error("[SMTP Email Service] Error Message:", error.message);
-    console.error("[SMTP Email Service] Full Error Stack:", error.stack);
-    console.error("[SMTP Email Service] Delivery status: FAILED");
+    console.error("[Email Service] sendPasswordResetEmail failed.");
+    console.error("[Email Service] Error Message:", error.message);
+    console.error("[Email Service] Full Error Stack:", error.stack);
     throw error;
   }
 };
