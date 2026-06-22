@@ -126,6 +126,43 @@ app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'CRMS API is running', timestamp: new Date().toISOString() });
 });
 
+// ─── SMTP Email Test Endpoint ────────────────────────────
+app.get('/api/test-email', async (req, res) => {
+  try {
+    const { sendPasswordResetEmail } = require('./services/emailService');
+    console.log("[Test Email Endpoint] Triggering sendPasswordResetEmail test...");
+    
+    const testRecipient = req.query.email || process.env.SMTP_USER || "bharathkumaryadla@gmail.com";
+    console.log("[Test Email Endpoint] Sending to:", testRecipient);
+    
+    const info = await sendPasswordResetEmail({
+      to: testRecipient,
+      userName: "Test User",
+      resetUrl: "https://placementhub-lake.vercel.app/reset-password?token=testtoken123"
+    });
+    
+    res.json({
+      success: true,
+      message: "Test email dispatched successfully!",
+      info
+    });
+  } catch (err) {
+    console.error("[Test Email Endpoint] Failed:", err);
+    res.status(500).json({
+      success: false,
+      message: "SMTP Test Failed",
+      error: {
+        message: err.message,
+        code: err.code,
+        command: err.command,
+        response: err.response,
+        responseCode: err.responseCode,
+        stack: err.stack
+      }
+    });
+  }
+});
+
 // ─── Routes ──────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/companies', companyRoutes);
