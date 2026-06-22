@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const https = require('https');
 
 // ── Environment Sanitization Helper ──────────────────────────────────────────
 const cleanEnvVar = (val) => {
@@ -18,24 +19,23 @@ const SMTP_USER = cleanEnvVar(process.env.SMTP_USER);
 const SMTP_PASS = cleanEnvVar(process.env.SMTP_PASS);
 const SMTP_FROM = cleanEnvVar(process.env.SMTP_FROM);
 const SMTP_SECURE = cleanEnvVar(process.env.SMTP_SECURE) === 'true';
+const RESEND_API_KEY = cleanEnvVar(process.env.RESEND_API_KEY);
 
 // ── Startup Diagnostics ──────────────────────────────────────────────────────
 (async () => {
-  console.log("\n=== SMTP CONFIGURATION DIAGNOSTICS ===");
+  console.log("\n=== SMTP & EMAIL CONFIGURATION DIAGNOSTICS ===");
+  console.log("RESEND_API_KEY (raw):", process.env.RESEND_API_KEY ? `*set* (length: ${process.env.RESEND_API_KEY.length})` : "(not set)");
   console.log("SMTP_HOST (raw):", process.env.SMTP_HOST ? `"${process.env.SMTP_HOST}"` : "(not set)");
   console.log("SMTP_HOST (cleaned):", SMTP_HOST ? `"${SMTP_HOST}"` : "(not set)");
-  console.log("SMTP_PORT (raw):", process.env.SMTP_PORT ? `"${process.env.SMTP_PORT}"` : "(not set)");
   console.log("SMTP_PORT (cleaned):", SMTP_PORT);
-  console.log("SMTP_USER (raw):", process.env.SMTP_USER ? `"${process.env.SMTP_USER}"` : "(not set)");
   console.log("SMTP_USER (cleaned):", SMTP_USER ? `"${SMTP_USER}"` : "(not set)");
-  console.log("SMTP_PASS (raw):", process.env.SMTP_PASS ? `*set* (length: ${process.env.SMTP_PASS.length})` : "(not set)");
   console.log("SMTP_PASS (cleaned):", SMTP_PASS ? `*set* (length: ${SMTP_PASS.length})` : "(not set)");
-  console.log("SMTP_FROM (raw):", process.env.SMTP_FROM ? `"${process.env.SMTP_FROM}"` : "(not set)");
   console.log("SMTP_FROM (cleaned):", SMTP_FROM ? `"${SMTP_FROM}"` : "(not set)");
-  console.log("SMTP_SECURE (raw):", process.env.SMTP_SECURE ? `"${process.env.SMTP_SECURE}"` : "(not set)");
   console.log("SMTP_SECURE (cleaned):", SMTP_SECURE);
 
-  if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
+  if (RESEND_API_KEY) {
+    console.log("[Email Service] Resend API Key detected. Using Resend HTTPS API as primary email driver.");
+  } else if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
     try {
       console.log("[SMTP Startup Check] Attempting transporter verification on startup...");
       const testTransporter = nodemailer.createTransport({
@@ -48,24 +48,67 @@ const SMTP_SECURE = cleanEnvVar(process.env.SMTP_SECURE) === 'true';
         },
       });
       await testTransporter.verify();
-      console.log("[SMTP Startup Check] Connection Successful!");
+      console.log("[SMTP Startup Check] SMTP Connection Successful!");
     } catch (err) {
-      console.error("[SMTP Startup Check] Connection Failed.");
+      console.error("[SMTP Startup Check] SMTP Connection Failed.");
       console.error("[SMTP Startup Check] Error Message:", err.message);
       console.error("[SMTP Startup Check] Full Error Stack:", err.stack);
     }
   } else {
     console.log("[SMTP Startup Check] Skipping transporter verification (SMTP not fully configured)");
   }
-  console.log("======================================\n");
+  console.log("==============================================\n");
 })();
 
-// ── Create transporter ────────────────────────────────────────────────────────
+// ── Resend API Sender ────────────────────────────────────────────────────────
+const sendViaResend = (apiKey, from, to, subject, html) => {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify({
+      from: from || 'onboarding@resend.dev',
+      to: [to],
+      subject,
+      html
+    });
+
+    const options = {
+      hostname: 'api.resend.com',
+      port: 443,
+      path: '/emails',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Length': Buffer.byteLength(data),
+      },
+    };
+
+    console.log("[Resend API] Dispatching email request to https://api.resend.com/emails...");
+    const req = https.request(options, (res) => {
+      let body = '';
+      res.on('data', (chunk) => body += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try {
+            resolve(JSON.parse(body));
+          } catch (e) {
+            resolve({ success: true, rawBody: body });
+          }
+        } else {
+          reject(new Error(`Resend API Error: Status ${res.statusCode} - ${body}`));
+        }
+      });
+    });
+
+    req.on('error', (err) => reject(err));
+    req.write(data);
+    req.end();
+  });
+};
+
+// ── Create transporter (Nodemailer Fallback) ─────────────────────────────────
 const createTransporter = async () => {
   if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
     console.log("[SMTP Transporter] Attempting connection to host:", SMTP_HOST);
-    console.log("[SMTP Transporter] Using Port:", SMTP_PORT, "| Secure flag:", SMTP_SECURE);
-    console.log("[SMTP Transporter] User:", SMTP_USER);
     try {
       const transporter = nodemailer.createTransport({
         host: SMTP_HOST,
@@ -76,14 +119,12 @@ const createTransporter = async () => {
           pass: SMTP_PASS,
         },
       });
-      // verify connection configuration
       await transporter.verify();
       console.log("[SMTP Transporter] Connected successfully. Transporter ready.");
       return transporter;
     } catch (verifyErr) {
       console.error("[SMTP Transporter] Verification failed for", SMTP_HOST);
       console.error("[SMTP Transporter] Error Message:", verifyErr.message);
-      console.error("[SMTP Transporter] Full Error Stack:", verifyErr.stack);
       throw verifyErr;
     }
   }
@@ -184,27 +225,37 @@ const buildResetEmailHTML = (userName, resetUrl) => `
 
 // ── Send reset email ──────────────────────────────────────────────────────────
 const sendPasswordResetEmail = async ({ to, userName, resetUrl }) => {
-  try {
-    console.log("[SMTP Email Service] Preparing email...");
-    const transporter = await createTransporter();
+  const fromAddress = SMTP_FROM || `"PlacementHub" <${SMTP_USER || 'noreply@placementhub.app'}>`;
+  const subject = 'Reset Your PlacementHub Password';
+  const html = buildResetEmailHTML(userName, resetUrl);
 
-    const fromAddress = SMTP_FROM || `"PlacementHub" <${SMTP_USER || 'noreply@placementhub.app'}>`;
-    console.log("[SMTP Email Service] Email From Header:", fromAddress);
-    console.log("[SMTP Email Service] Email To Header:", to);
+  try {
+    console.log("[SMTP Email Service] Preparing password reset email...");
+    console.log("[SMTP Email Service] To Header:", to);
     console.log("[SMTP Email Service] Reset URL:", resetUrl);
 
-    const mailOptions = {
+    // Primary: Resend HTTPS API (to bypass Render port blocks)
+    if (RESEND_API_KEY) {
+      console.log("[SMTP Email Service] Route: Resend HTTPS API");
+      // Resend requires verified domains or onboarding default
+      const resendFrom = fromAddress.includes('gmail.com') ? 'onboarding@resend.dev' : fromAddress;
+      const cleanFrom = resendFrom.includes('<') ? resendFrom : `"PlacementHub" <${resendFrom}>`;
+      const response = await sendViaResend(RESEND_API_KEY, cleanFrom, to, subject, html);
+      console.log("[SMTP Email Service] Resend dispatch success:", JSON.stringify(response));
+      console.log("[SMTP Email Service] Delivery status: SUCCESS");
+      return response;
+    }
+
+    // Fallback: SMTP / Ethereal via Nodemailer
+    console.log("[SMTP Email Service] Route: Nodemailer Transport");
+    const transporter = await createTransporter();
+    const info = await transporter.sendMail({
       from: fromAddress,
       to,
-      subject: 'Reset Your PlacementHub Password',
-      html: buildResetEmailHTML(userName, resetUrl),
-    };
-
-    console.log("[SMTP Email Service] Dispatching sendMail() request...");
-    const info = await transporter.sendMail(mailOptions);
-    console.log("[SMTP Email Service] sendMail() Response Successful!");
-    console.log("[SMTP Email Service] Message ID:", info.messageId);
-    console.log("[SMTP Email Service] Response Envelope:", JSON.stringify(info.envelope));
+      subject,
+      html
+    });
+    console.log("[SMTP Email Service] sendMail() success. Msg ID:", info.messageId);
     console.log("[SMTP Email Service] Delivery status: SUCCESS");
 
     if (!SMTP_HOST) {
@@ -213,7 +264,7 @@ const sendPasswordResetEmail = async ({ to, userName, resetUrl }) => {
 
     return info;
   } catch (error) {
-    console.error("[SMTP Email Service] sendMail() failed.");
+    console.error("[SMTP Email Service] sendMail failed.");
     console.error("[SMTP Email Service] Error Message:", error.message);
     console.error("[SMTP Email Service] Full Error Stack:", error.stack);
     console.error("[SMTP Email Service] Delivery status: FAILED");
