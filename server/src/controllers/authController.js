@@ -157,43 +157,52 @@ const getMe = async (req, res, next) => {
 const forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
-    console.log("Forgot password request received");
-    console.log("Email:", email);
+    console.log("[Forgot Password] Flow started.");
+    console.log("[Forgot Password] Entered email:", email);
     if (!email) throw new AppError('Email is required', 400);
 
     // Validate email configuration is present
     const hasSmtp = process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS;
     const hasEmailAuth = process.env.EMAIL_USER && process.env.EMAIL_PASSWORD;
-    if (!hasSmtp && !hasEmailAuth) {
-      const configErr = new AppError('Email service is not configured on the server. Please configure SMTP_HOST, SMTP_USER, and SMTP_PASS in your environment.', 500);
+    const hasResend = process.env.RESEND_API_KEY;
+    if (!hasSmtp && !hasEmailAuth && !hasResend) {
+      const configErr = new AppError('Email service is not configured on the server. Please configure SMTP_HOST, SMTP_USER, and SMTP_PASS or RESEND_API_KEY in your environment.', 500);
       console.error("Email sending error: Email service is not configured on the server.");
       throw configErr;
     }
 
-    // Always respond the same way — never reveal whether email exists (anti-enumeration)
-    const GENERIC_MSG = 'If an account with that email exists, a password reset link has been sent.';
-
     const user = await userService.findByEmail(email);
-    console.log("User found:", user?.email || null);
     if (!user) {
-      return res.json({ success: true, message: GENERIC_MSG });
+      console.log("[Forgot Password] User not found for email:", email);
+      throw new AppError('Email not found. Please check your email address.', 404);
     }
+
+    console.log("[Forgot Password] User found. User ID:", user.id, "| User Name:", user.name);
 
     // Generate a secure raw token (URL-safe hex), hash it for DB storage
     const rawToken = crypto.randomBytes(32).toString('hex');
-    console.log("Reset token generated");
+    console.log("[Forgot Password] Reset token generated.");
 
     const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
     const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
     await userService.storeResetToken(user.id, hashedToken, expiry);
-    console.log("Reset token stored");
+    console.log("[Forgot Password] Database update success. Reset token stored with expiry:", expiry);
 
-    const resetUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/reset-password?token=${rawToken}`;
+    const resetUrl = `${(process.env.CLIENT_URL || '').trim() || 'http://localhost:5173'}/reset-password?token=${rawToken}`;
+    console.log("[Forgot Password] Reset URL:", resetUrl);
 
-    await sendPasswordResetEmail({ to: user.email, userName: user.name, resetUrl });
+    try {
+      console.log("[Forgot Password] sendMail called for email:", user.email);
+      const emailRes = await sendPasswordResetEmail({ to: user.email, userName: user.name, resetUrl });
+      console.log("[Forgot Password] sendMail success. SMTP response:", JSON.stringify(emailRes));
+    } catch (emailErr) {
+      console.error("[Forgot Password] sendMail failure:", emailErr.message);
+      throw new AppError('Unable to send reset email. Please try again later.', 502);
+    }
 
-    res.json({ success: true, message: GENERIC_MSG });
+    console.log("[Forgot Password] Backend response sent: success = true");
+    res.json({ success: true, message: 'Reset link sent successfully' });
   } catch (err) {
     next(err);
   }

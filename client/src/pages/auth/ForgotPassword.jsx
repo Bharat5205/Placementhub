@@ -31,7 +31,8 @@ export default function ForgotPassword() {
 
     setLoading(true);
     try {
-      await authService.forgotPassword({ email: email.trim() });
+      const res = await authService.forgotPassword({ email: email.trim() });
+      toast.success(res.data?.message || 'Reset link sent successfully!');
       setSubmitted(true);
     } catch (err) {
       const msg = err.response?.data?.message || 'Something went wrong. Please try again.';
@@ -66,11 +67,11 @@ export default function ForgotPassword() {
               <CheckCircle size={36} color="#22c55e" />
             </div>
             <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1a1a2e', marginBottom: 12 }}>
-              Check your inbox
+              Reset link sent successfully
             </h2>
             <p style={{ fontSize: 14, color: '#666', lineHeight: 1.7, marginBottom: 28 }}>
-              If an account exists for <strong style={{ color: '#6B4EFF' }}>{email}</strong>, a
-              password reset link has been sent. The link expires in <strong>15 minutes</strong>.
+              A password reset link has been sent to <strong style={{ color: '#6B4EFF' }}>{email}</strong>.
+              The link expires in <strong>15 minutes</strong>.
             </p>
             <p style={{ fontSize: 13, color: '#999', marginBottom: 28, lineHeight: 1.6 }}>
               Didn't get it? Check your spam folder, or{' '}
