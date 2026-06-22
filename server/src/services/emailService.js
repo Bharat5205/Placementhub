@@ -1,5 +1,42 @@
 const nodemailer = require('nodemailer');
 const https = require('https');
+const dns = require('dns');
+
+// Force Node's DNS lookup to prioritize/use IPv4 for Gmail SMTP host to bypass Render's IPv6 routing limitations (ENETUNREACH)
+if (typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
+const originalLookup = dns.lookup;
+dns.lookup = function (hostname, options, callback) {
+  if (typeof options === 'function') {
+    callback = options;
+    options = {};
+  }
+  
+  const isGmail = hostname && hostname.includes('gmail.com');
+  if (isGmail) {
+    if (typeof options === 'object') {
+      options.family = 4;
+    } else {
+      options = { family: 4 };
+    }
+  }
+
+  const wrappedCallback = (err, address, family) => {
+    if (isGmail) {
+      if (err) {
+        console.error(`[DNS Lookup] Failed to resolve Gmail SMTP host: ${hostname}. Error: ${err.message}`);
+      } else {
+        console.log(`[DNS Lookup] Resolved Gmail SMTP host: ${hostname}`);
+        console.log(`[DNS Lookup] Resolved IP Address: ${address} | IP Version: IPv${family}`);
+      }
+    }
+    return callback(err, address, family);
+  };
+
+  return originalLookup.call(dns, hostname, options, wrappedCallback);
+};
 
 // ── Environment Sanitization Helper ──────────────────────────────────────────
 const cleanEnvVar = (val) => {
