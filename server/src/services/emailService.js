@@ -1,67 +1,95 @@
 const nodemailer = require('nodemailer');
 
+// ── Environment Sanitization Helper ──────────────────────────────────────────
+const cleanEnvVar = (val) => {
+  if (!val) return '';
+  let cleaned = val.trim();
+  // Strip surrounding quotes if any (e.g. "smtp.gmail.com" -> smtp.gmail.com)
+  if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || 
+      (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+    cleaned = cleaned.slice(1, -1);
+  }
+  return cleaned.trim();
+};
+
+const SMTP_HOST = cleanEnvVar(process.env.SMTP_HOST);
+const SMTP_PORT = parseInt(cleanEnvVar(process.env.SMTP_PORT)) || 587;
+const SMTP_USER = cleanEnvVar(process.env.SMTP_USER);
+const SMTP_PASS = cleanEnvVar(process.env.SMTP_PASS);
+const SMTP_FROM = cleanEnvVar(process.env.SMTP_FROM);
+const SMTP_SECURE = cleanEnvVar(process.env.SMTP_SECURE) === 'true';
+
 // ── Startup Diagnostics ──────────────────────────────────────────────────────
 (async () => {
   console.log("\n=== SMTP CONFIGURATION DIAGNOSTICS ===");
-  console.log("SMTP_HOST:", process.env.SMTP_HOST ? `"${process.env.SMTP_HOST}"` : "(not set)");
-  console.log("SMTP_PORT:", process.env.SMTP_PORT ? `"${process.env.SMTP_PORT}"` : "(not set)");
-  console.log("SMTP_USER:", process.env.SMTP_USER ? `"${process.env.SMTP_USER}"` : "(not set)");
-  console.log("SMTP_PASS:", process.env.SMTP_PASS ? `*set* (length: ${process.env.SMTP_PASS.length})` : "(not set)");
-  console.log("SMTP_FROM:", process.env.SMTP_FROM ? `"${process.env.SMTP_FROM}"` : "(not set)");
-  console.log("SMTP_SECURE:", process.env.SMTP_SECURE ? `"${process.env.SMTP_SECURE}"` : "(not set)");
+  console.log("SMTP_HOST (raw):", process.env.SMTP_HOST ? `"${process.env.SMTP_HOST}"` : "(not set)");
+  console.log("SMTP_HOST (cleaned):", SMTP_HOST ? `"${SMTP_HOST}"` : "(not set)");
+  console.log("SMTP_PORT (raw):", process.env.SMTP_PORT ? `"${process.env.SMTP_PORT}"` : "(not set)");
+  console.log("SMTP_PORT (cleaned):", SMTP_PORT);
+  console.log("SMTP_USER (raw):", process.env.SMTP_USER ? `"${process.env.SMTP_USER}"` : "(not set)");
+  console.log("SMTP_USER (cleaned):", SMTP_USER ? `"${SMTP_USER}"` : "(not set)");
+  console.log("SMTP_PASS (raw):", process.env.SMTP_PASS ? `*set* (length: ${process.env.SMTP_PASS.length})` : "(not set)");
+  console.log("SMTP_PASS (cleaned):", SMTP_PASS ? `*set* (length: ${SMTP_PASS.length})` : "(not set)");
+  console.log("SMTP_FROM (raw):", process.env.SMTP_FROM ? `"${process.env.SMTP_FROM}"` : "(not set)");
+  console.log("SMTP_FROM (cleaned):", SMTP_FROM ? `"${SMTP_FROM}"` : "(not set)");
+  console.log("SMTP_SECURE (raw):", process.env.SMTP_SECURE ? `"${process.env.SMTP_SECURE}"` : "(not set)");
+  console.log("SMTP_SECURE (cleaned):", SMTP_SECURE);
 
-  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+  if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
     try {
-      console.log("Attempting transporter verification on startup...");
+      console.log("[SMTP Startup Check] Attempting transporter verification on startup...");
       const testTransporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT) || 587,
-        secure: process.env.SMTP_SECURE === 'true',
+        host: SMTP_HOST,
+        port: SMTP_PORT,
+        secure: SMTP_SECURE,
         auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
+          user: SMTP_USER,
+          pass: SMTP_PASS,
         },
       });
       await testTransporter.verify();
-      console.log("SMTP Connection Successful");
+      console.log("[SMTP Startup Check] Connection Successful!");
     } catch (err) {
-      console.error("SMTP Connection Failed:", err.message);
+      console.error("[SMTP Startup Check] Connection Failed.");
+      console.error("[SMTP Startup Check] Error Message:", err.message);
+      console.error("[SMTP Startup Check] Full Error Stack:", err.stack);
     }
   } else {
-    console.log("Skipping transporter verification (SMTP not fully configured)");
+    console.log("[SMTP Startup Check] Skipping transporter verification (SMTP not fully configured)");
   }
   console.log("======================================\n");
 })();
 
 // ── Create transporter ────────────────────────────────────────────────────────
-// Uses SMTP credentials from .env.
-// For development without real SMTP, falls back to Ethereal (fake SMTP) automatically.
 const createTransporter = async () => {
-  // If real SMTP is configured, use it
-  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-    console.log("SMTP Connection Status: Attempting connection to", process.env.SMTP_HOST);
+  if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
+    console.log("[SMTP Transporter] Attempting connection to host:", SMTP_HOST);
+    console.log("[SMTP Transporter] Using Port:", SMTP_PORT, "| Secure flag:", SMTP_SECURE);
+    console.log("[SMTP Transporter] User:", SMTP_USER);
     try {
       const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT) || 587,
-        secure: process.env.SMTP_SECURE === 'true',
+        host: SMTP_HOST,
+        port: SMTP_PORT,
+        secure: SMTP_SECURE,
         auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
+          user: SMTP_USER,
+          pass: SMTP_PASS,
         },
       });
       // verify connection configuration
       await transporter.verify();
-      console.log("SMTP Connection Status: Connected Successfully");
+      console.log("[SMTP Transporter] Connected successfully. Transporter ready.");
       return transporter;
     } catch (verifyErr) {
-      console.error("SMTP Connection Status: Failed to connect to", process.env.SMTP_HOST, "-", verifyErr.message);
+      console.error("[SMTP Transporter] Verification failed for", SMTP_HOST);
+      console.error("[SMTP Transporter] Error Message:", verifyErr.message);
+      console.error("[SMTP Transporter] Full Error Stack:", verifyErr.stack);
       throw verifyErr;
     }
   }
 
-  // Development fallback: Ethereal fake SMTP — logs email to console
-  console.log("SMTP Connection Status: Missing configuration, attempting Ethereal fallback");
+  // Development fallback: Ethereal fake SMTP
+  console.log("[SMTP Transporter] Missing configuration, attempting Ethereal fallback");
   const testAccount = await nodemailer.createTestAccount();
   const transporter = nodemailer.createTransport({
     host: 'smtp.ethereal.email',
@@ -72,7 +100,7 @@ const createTransporter = async () => {
       pass: testAccount.pass,
     },
   });
-  console.log("SMTP Connection Status: Ethereal Transporter Created");
+  console.log("[SMTP Transporter] Ethereal Transporter Created");
   return transporter;
 };
 
@@ -157,11 +185,13 @@ const buildResetEmailHTML = (userName, resetUrl) => `
 // ── Send reset email ──────────────────────────────────────────────────────────
 const sendPasswordResetEmail = async ({ to, userName, resetUrl }) => {
   try {
-    console.log("Preparing email");
+    console.log("[SMTP Email Service] Preparing email...");
     const transporter = await createTransporter();
 
-    const fromAddress = process.env.SMTP_FROM || `"PlacementHub" <${process.env.SMTP_USER || 'noreply@placementhub.app'}>`;
-    console.log("Email From Header:", fromAddress);
+    const fromAddress = SMTP_FROM || `"PlacementHub" <${SMTP_USER || 'noreply@placementhub.app'}>`;
+    console.log("[SMTP Email Service] Email From Header:", fromAddress);
+    console.log("[SMTP Email Service] Email To Header:", to);
+    console.log("[SMTP Email Service] Reset URL:", resetUrl);
 
     const mailOptions = {
       from: fromAddress,
@@ -170,18 +200,23 @@ const sendPasswordResetEmail = async ({ to, userName, resetUrl }) => {
       html: buildResetEmailHTML(userName, resetUrl),
     };
 
-    console.log("Sending email");
+    console.log("[SMTP Email Service] Dispatching sendMail() request...");
     const info = await transporter.sendMail(mailOptions);
-    console.log("Email sent successfully");
+    console.log("[SMTP Email Service] sendMail() Response Successful!");
+    console.log("[SMTP Email Service] Message ID:", info.messageId);
+    console.log("[SMTP Email Service] Response Envelope:", JSON.stringify(info.envelope));
+    console.log("[SMTP Email Service] Delivery status: SUCCESS");
 
-    // In development, log the Ethereal preview URL so the email can be inspected
-    if (!process.env.SMTP_HOST) {
-      console.log(`\n📧 Password reset email preview: ${nodemailer.getTestMessageUrl(info)}`);
+    if (!SMTP_HOST) {
+      console.log(`\n📧 Ethereal message preview URL: ${nodemailer.getTestMessageUrl(info)}`);
     }
 
     return info;
   } catch (error) {
-    console.error("Email send failed:", error);
+    console.error("[SMTP Email Service] sendMail() failed.");
+    console.error("[SMTP Email Service] Error Message:", error.message);
+    console.error("[SMTP Email Service] Full Error Stack:", error.stack);
+    console.error("[SMTP Email Service] Delivery status: FAILED");
     throw error;
   }
 };
