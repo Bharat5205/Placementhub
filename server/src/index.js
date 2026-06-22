@@ -30,28 +30,61 @@ app.use(passport.session());
 
 // Google OAuth endpoints
 app.get('/auth/google', (req, res, next) => {
+  console.log('[OAuth Start] GET /auth/google hit.');
+  console.log('[OAuth Start] GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? 'set' : 'NOT set');
+  console.log('[OAuth Start] GOOGLE_CALLBACK_URL:', process.env.GOOGLE_CALLBACK_URL);
+  console.log('[OAuth Start] CLIENT_URL:', process.env.CLIENT_URL);
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-    return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=oauth_not_configured`);
+    const target = `${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=oauth_not_configured`;
+    console.log('[OAuth Start] Credentials missing. Redirecting to:', target);
+    return res.redirect(target);
   }
+  console.log('[OAuth Start] Triggering passport.authenticate("google")...');
   passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
 });
 
 app.get('/auth/google/callback',
   (req, res, next) => {
+    console.log('[OAuth Callback] GET /auth/google/callback hit.');
+    console.log('[OAuth Callback] Full original URL:', req.originalUrl);
+    console.log('[OAuth Callback] Query parameters:', JSON.stringify(req.query));
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-      return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=oauth_not_configured`);
+      const target = `${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=oauth_not_configured`;
+      console.log('[OAuth Callback] Credentials missing. Redirecting to:', target);
+      return res.redirect(target);
     }
-    passport.authenticate('google', { failureRedirect: `${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=oauth_failed`, session: false })(req, res, next);
+    const failureTarget = `${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=oauth_failed`;
+    console.log('[OAuth Callback] Triggering passport.authenticate("google") callback verification...');
+    passport.authenticate('google', { 
+      failureRedirect: failureTarget, 
+      session: false 
+    }, (err, user, info) => {
+      if (err) {
+        console.error('[OAuth Callback] Passport verification error:', err);
+        return res.redirect(failureTarget);
+      }
+      if (!user) {
+        console.log('[OAuth Callback] Passport authentication failed. Info:', info);
+        return res.redirect(failureTarget);
+      }
+      console.log('[OAuth Callback] Passport authentication success! Logged-in User:', user.email);
+      req.user = user;
+      next();
+    })(req, res, next);
   },
   async (req, res) => {
     try {
+      console.log('[OAuth Callback Success] Generating tokens for user:', req.user ? req.user.email : 'undefined');
       const { accessToken, refreshToken } = generateTokens(req.user);
       const userService = require('./services/userService');
       await userService.updateRefreshToken(req.user.id, refreshToken);
-      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/login?token=${accessToken}&refreshToken=${refreshToken}`);
+      const target = `${process.env.CLIENT_URL || 'http://localhost:5173'}/login?token=${accessToken}&refreshToken=${refreshToken}`;
+      console.log('[OAuth Callback Success] Redirecting user to frontend target:', target);
+      res.redirect(target);
     } catch (err) {
-      console.error('Google OAuth callback error:', err.message);
-      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=oauth_error`);
+      console.error('[OAuth Callback Success Error] Google OAuth callback error:', err.message);
+      const target = `${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=oauth_error`;
+      res.redirect(target);
     }
   }
 );
