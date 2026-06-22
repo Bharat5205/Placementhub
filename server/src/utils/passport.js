@@ -4,21 +4,36 @@ const userService = require('../services/userService');
 
 // We will only configure the Google Strategy if credentials are provided in env.
 // This prevents application crash if they are not yet set up.
-if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-  const callbackURL = process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/auth/google/callback';
+const rawClientID = process.env.GOOGLE_CLIENT_ID || '';
+const rawClientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
+const rawCallbackURL = process.env.GOOGLE_CALLBACK_URL || '';
+
+if (rawClientID.trim() && rawClientSecret.trim()) {
+  const clientID = rawClientID.trim();
+  const clientSecret = rawClientSecret.trim();
+  const callbackURL = rawCallbackURL.trim() || 'http://localhost:5000/auth/google/callback';
+  
+  const maskedSecret = clientSecret.length >= 20 
+    ? `${clientSecret.slice(0, 10)}...${clientSecret.slice(-10)}` 
+    : 'secret_too_short';
+    
   console.log('[Passport Google] Initializing Google Strategy.');
-  console.log('[Passport Google] GOOGLE_CLIENT_ID is set (length:', process.env.GOOGLE_CLIENT_ID.length, ')');
-  console.log('[Passport Google] Configured callbackURL:', callbackURL);
+  console.log('[Passport Google] GOOGLE_CLIENT_ID used at runtime:', clientID);
+  console.log('[Passport Google] GOOGLE_CLIENT_SECRET (first/last 10):', maskedSecret);
+  console.log('[Passport Google] GOOGLE_CALLBACK_URL used at runtime:', callbackURL);
+  console.log('[Passport Google] CLIENT_URL used at runtime:', process.env.CLIENT_URL);
+  console.log('[Passport Google] Passport Google Strategy callbackURL:', callbackURL);
 
   passport.use(
     new GoogleStrategy(
       {
-        clientID: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        clientID: clientID,
+        clientSecret: clientSecret,
         callbackURL: callbackURL,
       },
       async (accessToken, refreshToken, profile, done) => {
-        console.log('[Passport Google Callback] Verify function triggered.');
+        console.log('[Passport Google Callback] Verify function triggered (Passport callback execution).');
+        console.log('[Passport Google Callback] Received profile (Google profile received):', JSON.stringify(profile));
         console.log('[Passport Google Callback] Received profile ID:', profile.id);
         console.log('[Passport Google Callback] Received profile displayName:', profile.displayName);
         try {

@@ -5,16 +5,18 @@ require('dotenv').config();
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-const poolConfig = process.env.DATABASE_URL
+const dbUrl = (process.env.DATABASE_URL || '').trim();
+
+const poolConfig = dbUrl
   ? {
-      connectionString: process.env.DATABASE_URL,
+      connectionString: dbUrl,
       ssl: isProduction ? { rejectUnauthorized: false } : false,
     }
   : {
-      host: process.env.DB_HOST || 'localhost',
+      host: (process.env.DB_HOST || '').trim() || 'localhost',
       port: process.env.DB_PORT || 5432,
-      database: process.env.DB_NAME || 'crms_db',
-      user: process.env.DB_USER || 'postgres',
+      database: (process.env.DB_NAME || '').trim() || 'crms_db',
+      user: (process.env.DB_USER || '').trim() || 'postgres',
       password: process.env.DB_PASSWORD || '',
       ssl: isProduction ? { rejectUnauthorized: false } : false,
     };
@@ -23,7 +25,7 @@ const pool = new Pool({
   ...poolConfig,
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 15000, // Increased from 2000 to handle Neon cold starts
 });
 
 pool.on('error', (err) => {

@@ -6,9 +6,18 @@ const { sendPasswordResetEmail } = require('../services/emailService');
 const { AppError } = require('../utils/appError');
 
 const generateTokens = (user) => {
+  console.log('[JWT Generation] Generating access and refresh tokens (JWT generation).');
+  console.log('[JWT Generation] User email:', user.email);
+  console.log('[JWT Generation] User ID:', user.id);
+  console.log('[JWT Generation] User role:', user.role);
+  console.log('[JWT Generation] JWT_SECRET presence:', !!process.env.JWT_SECRET);
+  console.log('[JWT Generation] JWT_REFRESH_SECRET presence:', !!process.env.JWT_REFRESH_SECRET);
+  
   const payload = { id: user.id, email: user.email, role: user.role };
   const accessToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '15m' });
   const refreshToken = jwt.sign(payload, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
+  
+  console.log('[JWT Generation] Tokens generated successfully. Access token length:', accessToken.length, 'Refresh token length:', refreshToken.length);
   return { accessToken, refreshToken };
 };
 
