@@ -73,16 +73,19 @@ const login = async (req, res, next) => {
 
     const user = await userService.findByEmail(email);
     if (!user) {
+      console.warn(`[Login Attempt] Failed - No account found for email: ${email}`);
       throw new AppError('No account found with this email.', 401);
     }
 
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
+      console.warn(`[Login Attempt] Failed - Incorrect password for user: ${email}`);
       throw new AppError('Incorrect password. Please try again.', 401);
     }
 
     // Role validation
     if (role && user.role !== role) {
+      console.warn(`[Login Attempt] Failed - Role mismatch for user: ${email}. Attempted role: ${role}, Actual role: ${user.role}`);
       if (user.role === 'coordinator') {
         throw new AppError('❌ This account is registered as a Coordinator. Please use the Coordinator Login page.', 403);
       } else if (user.role === 'student') {
@@ -93,10 +96,16 @@ const login = async (req, res, next) => {
     }
 
     const { accessToken, refreshToken } = generateTokens(user);
+    const decodedAccess = jwt.decode(accessToken);
+    const decodedRefresh = jwt.decode(refreshToken);
+    console.log(`[Login Attempt] Success - Access token expires at: ${new Date(decodedAccess.exp * 1000).toISOString()}`);
+    console.log(`[Login Attempt] Success - Refresh token expires at: ${new Date(decodedRefresh.exp * 1000).toISOString()}`);
+
     await userService.updateRefreshToken(user.id, refreshToken);
 
     const { password_hash, refresh_token, ...safeUser } = user;
 
+    console.log(`[Login Attempt] Success - User logged in: ${email} (Role: ${user.role})`);
     res.json({
       success: true,
       message: 'Login successful',
@@ -110,19 +119,34 @@ const login = async (req, res, next) => {
 const refreshToken = async (req, res, next) => {
   try {
     const { refreshToken: token } = req.body;
-    if (!token) throw new AppError('Refresh token required', 400);
+    console.log('[Token Refresh] Token refresh attempt initiated.');
+    if (!token) {
+      console.warn('[Token Refresh] Failed - No refresh token provided in body.');
+      throw new AppError('Refresh token required', 400);
+    }
 
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
-    } catch {
+      console.log(`[Token Refresh] Refresh token verified. User email: ${decoded.email}`);
+    } catch (jwtErr) {
+      console.error(`[Token Refresh] Failed - Invalid or expired refresh token: ${jwtErr.message}`);
       throw new AppError('Invalid or expired refresh token', 401);
     }
 
     const user = await userService.findByRefreshToken(token);
-    if (!user) throw new AppError('Invalid refresh token', 401);
+    if (!user) {
+      console.error('[Token Refresh] Failed - Refresh token not found in database (revoked or rotated).');
+      throw new AppError('Invalid refresh token', 401);
+    }
 
     const { accessToken, refreshToken: newRefresh } = generateTokens(user);
+    const decodedNewAccess = jwt.decode(accessToken);
+    const decodedNewRefresh = jwt.decode(newRefresh);
+    console.log(`[Token Refresh] Success - Generated new tokens for user: ${user.email}`);
+    console.log(`[Token Refresh] Access token expires at: ${new Date(decodedNewAccess.exp * 1000).toISOString()}`);
+    console.log(`[Token Refresh] Refresh token expires at: ${new Date(decodedNewRefresh.exp * 1000).toISOString()}`);
+
     await userService.updateRefreshToken(user.id, newRefresh);
 
     res.json({
@@ -136,6 +160,7 @@ const refreshToken = async (req, res, next) => {
 
 const logout = async (req, res, next) => {
   try {
+    console.log(`[Logout Event] User logged out: ${req.user.email} (ID: ${req.user.id})`);
     await userService.updateRefreshToken(req.user.id, null);
     res.json({ success: true, message: 'Logged out successfully' });
   } catch (err) {

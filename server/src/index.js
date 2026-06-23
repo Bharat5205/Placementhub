@@ -14,19 +14,10 @@ const { errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
 
-const session = require('express-session');
 const passport = require('./utils/passport');
 const { generateTokens } = require('./controllers/authController');
 
-// Session config
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'placementhub_session_secret',
-  resave: false,
-  saveUninitialized: false
-}));
-
 app.use(passport.initialize());
-app.use(passport.session());
 
 // Google OAuth endpoints
 app.get('/auth/google', (req, res, next) => {
