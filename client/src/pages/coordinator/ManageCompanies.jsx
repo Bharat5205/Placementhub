@@ -18,6 +18,7 @@ const PREDEFINED_LOGOS = [
   { label: 'Google (google.svg)', value: 'google.svg' },
   { label: 'Microsoft (microsoft.svg)', value: 'microsoft.svg' },
   { label: 'Amazon (amazon.svg)', value: 'amazon.svg' },
+  { label: 'D. E. Shaw (deshaw.svg)', value: 'deshaw.svg' },
   { label: 'Infosys (infosys.svg)', value: 'infosys.svg' },
   { label: 'TCS (tcs.svg)', value: 'tcs.svg' },
   { label: 'Wipro (wipro.svg)', value: 'wipro.svg' },
