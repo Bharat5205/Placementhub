@@ -1,0 +1,260 @@
+{
+  "interview_experiences": [
+    {
+      "column_name": "created_by",
+      "data_type": "uuid"
+    },
+    {
+      "column_name": "student_id",
+      "data_type": "uuid"
+    },
+    {
+      "column_name": "company_id",
+      "data_type": "uuid"
+    },
+    {
+      "column_name": "reviewed_by",
+      "data_type": "uuid"
+    },
+    {
+      "column_name": "reviewed_at",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "column_name": "created_at",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "column_name": "updated_at",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "column_name": "id",
+      "data_type": "uuid"
+    },
+    {
+      "column_name": "status",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "title",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "role_offered",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "difficulty_level",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "resources_links",
+      "data_type": "text"
+    },
+    {
+      "column_name": "company_name",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "batch_year",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "interview_rounds",
+      "data_type": "text"
+    },
+    {
+      "column_name": "experience",
+      "data_type": "text"
+    },
+    {
+      "column_name": "preparation_tips",
+      "data_type": "text"
+    }
+  ],
+  "users": [
+    {
+      "column_name": "updated_at",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "column_name": "cgpa",
+      "data_type": "numeric"
+    },
+    {
+      "column_name": "reset_token_expiry",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "column_name": "created_at",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "column_name": "id",
+      "data_type": "uuid"
+    },
+    {
+      "column_name": "roll_number",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "branch",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "department",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "employee_id",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "refresh_token",
+      "data_type": "text"
+    },
+    {
+      "column_name": "reset_token",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "google_id",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "auth_provider",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "name",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "email",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "password_hash",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "role",
+      "data_type": "character varying"
+    }
+  ],
+  "companies": [
+    {
+      "column_name": "eligibility_cgpa",
+      "data_type": "numeric"
+    },
+    {
+      "column_name": "visit_date",
+      "data_type": "date"
+    },
+    {
+      "column_name": "is_active",
+      "data_type": "boolean"
+    },
+    {
+      "column_name": "created_by",
+      "data_type": "uuid"
+    },
+    {
+      "column_name": "created_at",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "column_name": "updated_at",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "column_name": "id",
+      "data_type": "uuid"
+    },
+    {
+      "column_name": "application_deadline",
+      "data_type": "date"
+    },
+    {
+      "column_name": "package_lpa",
+      "data_type": "numeric"
+    },
+    {
+      "column_name": "application_link",
+      "data_type": "text"
+    },
+    {
+      "column_name": "name",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "logo_url",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "role_offered",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "description",
+      "data_type": "text"
+    },
+    {
+      "column_name": "hiring_process",
+      "data_type": "text"
+    },
+    {
+      "column_name": "jd_pdf_url",
+      "data_type": "character varying"
+    }
+  ],
+  "notifications": [
+    {
+      "column_name": "created_by",
+      "data_type": "uuid"
+    },
+    {
+      "column_name": "created_at",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "column_name": "updated_at",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "column_name": "id",
+      "data_type": "uuid"
+    },
+    {
+      "column_name": "priority",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "title",
+      "data_type": "character varying"
+    },
+    {
+      "column_name": "message",
+      "data_type": "text"
+    }
+  ],
+  "notification_reads": [
+    {
+      "column_name": "id",
+      "data_type": "uuid"
+    },
+    {
+      "column_name": "student_id",
+      "data_type": "uuid"
+    },
+    {
+      "column_name": "notification_id",
+      "data_type": "uuid"
+    },
+    {
+      "column_name": "read_at",
+      "data_type": "timestamp without time zone"
+    }
+  ]
+}

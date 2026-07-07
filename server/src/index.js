@@ -44,7 +44,7 @@ app.get('/auth/google', (req, res, next) => {
   };
 
   console.log('[OAuth Start] Triggering passport.authenticate("google")...');
-  passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
+  passport.authenticate('google', { scope: ['profile', 'email'], session: false })(req, res, next);
 });
 
 app.get('/auth/google/callback',

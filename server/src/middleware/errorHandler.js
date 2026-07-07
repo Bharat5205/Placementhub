@@ -8,23 +8,25 @@ const errorHandler = (err, req, res, next) => {
   // PostgreSQL errors
   if (err.code === '23505') {
     statusCode = 409;
-    message = 'A record with this information already exists';
+    message = `Database Error (Duplicate): ${err.detail || err.message}`;
   } else if (err.code === '23503') {
     statusCode = 400;
-    message = 'Referenced record does not exist';
+    message = `Database Error (Foreign Key): ${err.detail || err.message}`;
   } else if (err.code === '22P02') {
     statusCode = 400;
-    message = 'Invalid UUID format';
+    message = `Database Error (Invalid format): ${err.message}`;
+  } else if (err.code) {
+    message = `Database Error: ${err.message}`;
   }
 
   // JWT errors
   if (err.name === 'JsonWebTokenError') {
     statusCode = 401;
-    message = 'Invalid token';
+    message = `JWT Error: ${err.message}`;
   }
   if (err.name === 'TokenExpiredError') {
     statusCode = 401;
-    message = 'Token has expired';
+    message = `JWT Error: ${err.message}`;
   }
 
   if (process.env.NODE_ENV === 'development') {
